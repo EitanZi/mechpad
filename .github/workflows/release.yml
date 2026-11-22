@@ -1,0 +1,53 @@
+name: Build & Release MechPad
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build universal MechPad.app (arm64 + x86_64)
+        run: |
+          chmod +x build.sh
+          ./build.sh universal
+          codesign --verify --deep --strict MechPad.app
+
+      - name: Package release archive
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent MechPad.app MechPad.zip
+          shasum -a 256 MechPad.zip > MechPad.zip.sha256
+          ls -lh MechPad.zip MechPad.zip.sha256
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          TAG="build-${GITHUB_RUN_NUMBER}-${SHORT_SHA}"
+          COMMIT_MSG="$(git log -1 --pretty=%s)"
+
+          gh release create "${TAG}" \
+            MechPad.zip \
+            MechPad.zip.sha256 \
+            --target "${GITHUB_SHA}" \
+            --title "MechPad ${TAG}" \
+            --notes "Automated universal macOS build (Apple Silicon & Intel) for commit \`${SHORT_SHA}\`.
+
+          **Commit:** ${COMMIT_MSG}
+
+          ### Install
+          1. Download and unzip \`MechPad.zip\`.
+          2. Drag \`MechPad.app\` to Applications (or run directly).
+          3. On first launch, right-click → Open if Gatekeeper prompts (ad-hoc signed build)."

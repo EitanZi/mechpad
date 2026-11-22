@@ -1,0 +1,5 @@
+build/
+MechPad.app/
+MechPad.zip
+MechPad.zip.sha256
+.DS_Store
