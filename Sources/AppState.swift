@@ -8,6 +8,7 @@ final class AppState: ObservableObject {
         static let intensity = "mechpad.intensity"
         static let keyUpSound = "mechpad.keyUpSound"
         static let keyAcoustics = "mechpad.keyAcoustics"
+        static let builtInOnly = "mechpad.builtInOnly"
     }
 
     let engine = HapticEngine()
@@ -45,6 +46,13 @@ final class AppState: ObservableObject {
         }
     }
 
+    @Published var builtInOnly: Bool {
+        didSet {
+            UserDefaults.standard.set(builtInOnly, forKey: Keys.builtInOnly)
+            monitor.builtInOnly = builtInOnly
+        }
+    }
+
     @Published var hasGlobalAccess: Bool = false
     @Published var lastKeyLabel: String = "—"
     @Published var pulseCounter: Int = 0
@@ -63,6 +71,8 @@ final class AppState: ObservableObject {
         intensity = defaults.object(forKey: Keys.intensity) as? Double ?? 0.85
         playKeyUp = defaults.object(forKey: Keys.keyUpSound) as? Bool ?? true
         useKeyAcoustics = defaults.object(forKey: Keys.keyAcoustics) as? Bool ?? true
+        builtInOnly = defaults.object(forKey: Keys.builtInOnly) as? Bool ?? true
+        monitor.builtInOnly = builtInOnly
 
         monitor.onPermissionChanged = { [weak self] granted in
             DispatchQueue.main.async {

@@ -13,8 +13,11 @@ final class KeyboardMonitor {
     private var localMonitor: Any?
     private var permissionTimer: Timer?
     private var lastModifierFlags: CGEventFlags = []
+    private var builtInBySender: [UInt64: Bool] = [:]
 
     var onKeyEvent: KeyHandler?
+    /// Click only for the Mac's own keyboard, not for external ones.
+    var builtInOnly = false
     var onPermissionChanged: ((Bool) -> Void)?
 
     private(set) var hasGlobalAccess: Bool = false
@@ -141,15 +144,16 @@ final class KeyboardMonitor {
         // Keystrokes posted by other apps (e.g. RuSwitcher retyping a word) carry their event source's
         // user data; hardware keystrokes have 0. Clicking on them causes a machine-gun burst.
         let isSynthetic = event.getIntegerValueField(.eventSourceUserData) != 0
+        let ignored = isSynthetic || (builtInOnly && !isFromBuiltInKeyboard(event))
 
         switch type {
         case .keyDown:
-            if isSynthetic { return }
+            if ignored { return }
             if event.getIntegerValueField(.keyboardEventAutorepeat) != 0 { return }
             onKeyEvent?(keyCode, true)
 
         case .keyUp:
-            if isSynthetic { return }
+            if ignored { return }
             onKeyEvent?(keyCode, false)
 
         case .flagsChanged:
@@ -158,7 +162,7 @@ final class KeyboardMonitor {
             let prev = lastModifierFlags.intersection(relevantMask)
             let curr = flags.intersection(relevantMask)
             lastModifierFlags = flags // track ignored changes too, so the next real one compares correctly
-            if curr != prev && !isSynthetic {
+            if curr != prev && !ignored {
                 let isDown = curr.rawValue > prev.rawValue
                 onKeyEvent?(keyCode, isDown)
             }
@@ -166,5 +170,27 @@ final class KeyboardMonitor {
         default:
             break
         }
+    }
+
+    /// Looks up the HID service that sent the event and checks its "Built-In" property.
+    /// Field 87 (sender's IORegistry ID) is undocumented; if it is missing we fail open and click.
+    private func isFromBuiltInKeyboard(_ event: CGEvent) -> Bool {
+        guard let field = CGEventField(rawValue: 87) else { return true }
+        let senderID = UInt64(bitPattern: event.getIntegerValueField(field))
+        if senderID == 0 { return true }
+        if let cached = builtInBySender[senderID] { return cached }
+
+        var builtIn = false
+        let service = IOServiceGetMatchingService(kIOMainPortDefault, IORegistryEntryIDMatching(senderID))
+        if service != 0 {
+            let value = IORegistryEntrySearchCFProperty(
+                service, kIOServicePlane, "Built-In" as CFString, kCFAllocatorDefault,
+                IOOptionBits(kIORegistryIterateRecursively | kIORegistryIterateParents)
+            )
+            builtIn = (value as? Bool) ?? false
+            IOObjectRelease(service)
+        }
+        builtInBySender[senderID] = builtIn
+        return builtIn
     }
 }
