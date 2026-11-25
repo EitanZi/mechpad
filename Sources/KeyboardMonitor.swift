@@ -17,7 +17,7 @@ final class KeyboardMonitor {
 
     var onKeyEvent: KeyHandler?
     /// Click only for the Mac's own keyboard, not for external ones.
-    var builtInOnly = false
+    var builtInOnly = true
     var onPermissionChanged: ((Bool) -> Void)?
 
     private(set) var hasGlobalAccess: Bool = false
