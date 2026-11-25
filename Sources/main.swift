@@ -200,6 +200,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         let quit = NSMenuItem(title: String(localized: "Quit MechPad"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         quit.image = NSImage(systemSymbolName: "xmark.rectangle", accessibilityDescription: nil)
         menu.addItem(quit)
+
+        // macOS 27 hides menu item images by default; ask for ours to stay visible.
+        if #available(macOS 27, *) {
+            for entry in menu.items + profileMenu.items where entry.image != nil {
+                entry.preferredImageVisibility = .visible
+            }
+        }
     }
 
     private func item(_ title: String.LocalizationValue, _ action: Selector, symbol: String? = nil) -> NSMenuItem {
